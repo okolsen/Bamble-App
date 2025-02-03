@@ -1,5 +1,6 @@
 import React from "react";
 import BambleMap from "./BambleMap";
+import "./App.css"; 
 
 function App() {
   return (

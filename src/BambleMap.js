@@ -46,6 +46,12 @@ const getBarnFarge = (antallBarn) => {
                            "#FFEDA0";
 };
 
+// Fargekoding for befolkningsendring
+const getEndringFarge = (endring) => {
+  if (endring === null) return "#cccccc"; // Grå for manglende data
+  return endring > 0 ? "#1a9850" : "#d73027"; // Grønn for økning, rød for nedgang
+};
+
 
 // Ikoner for skoler og barnehager
 const schoolIcon = new L.Icon({
@@ -73,59 +79,93 @@ const BambleMap = () => {
 
   const håndterGrunnkrets = (feature, layer) => {
     if (feature.properties) {
-      const { grunnkretsnavn, totalBefolkning, befolkning0Til04År } = feature.properties;
-      const andelEldre = beregnAndelEldre(feature.properties);
-  
-      // Velg riktig fargekode basert på valgt visningsmodus
-      const farge = visModus === "befolkning"
-        ? getBefolkningFarge(totalBefolkning)
-        : visModus === "eldre"
-        ? getEldreFarge(andelEldre)
-        : getBarnFarge(befolkning0Til04År || 0);
-  
-      layer.setStyle({
-        fillColor: farge,
-        weight: 1,
-        opacity: 1,
-        color: "white",
-        fillOpacity: 0.7
-      });
-  
-      // **Håndter visning av grunnkretsnavn basert på filter**
-      if (visGrunnkretsNavn) {
-        layer.bindTooltip(grunnkretsnavn, {
-          permanent: true,
-          direction: "center",
-          className: "grunnkrets-label"
+        const { grunnkretsnavn, totalBefolkning, befolkning0Til04År } = feature.properties;
+        const andelEldre = beregnAndelEldre(feature.properties);
+        
+        // Finn 2017-data for denne grunnkretsen
+        const valgtGrunnkrets2017 = data2017.find(
+            (item) => item.grunnkretsnavn === grunnkretsnavn
+        );
+
+        const befolkning2017 = valgtGrunnkrets2017 ? valgtGrunnkrets2017.totalBefolkning : null;
+        const endring = befolkning2017 !== null ? totalBefolkning - befolkning2017 : null;
+
+        // Velg riktig fargekode basert på valgt visningsmodus
+        const farge = visModus === "befolkning"
+            ? getBefolkningFarge(totalBefolkning)
+            : visModus === "eldre"
+            ? getEldreFarge(andelEldre)
+            : visModus === "barn"
+            ? getBarnFarge(befolkning0Til04År || 0)
+            : getEndringFarge(endring);
+
+        layer.setStyle({
+            fillColor: farge,
+            weight: 1,
+            opacity: 1,
+            color: "white",
+            fillOpacity: 0.7
         });
-      } else {
-        layer.unbindTooltip(); // **Fjern tooltip hvis filteret er deaktivert**
-      }
-  
-      layer.bindPopup(`
-        <strong>${grunnkretsnavn}</strong><br/>
-        Totalt antall innbyggere: ${totalBefolkning}<br/>
-        Andel 60+: ${(andelEldre * 100).toFixed(1)}%<br/>
-        Antall barn 0-4 år: ${befolkning0Til04År || 0}<br/>
-        <button id="visGraf-${grunnkretsnavn.replace(/\s/g, '')}" 
-          style="padding:5px; margin-top:5px; cursor:pointer;">
-          Vis aldersfordeling
-        </button>
-      `);
-  
-      layer.on("popupopen", () => {
-        const knapp = document.getElementById(`visGraf-${grunnkretsnavn.replace(/\s/g, '')}`);
-        if (knapp) {
-          knapp.addEventListener("click", () => {
-            setValgtGrunnkrets({
-              grunnkretsnavn,
-              populationData: feature.properties
+
+        // 🛑 **Fjern tidligere tooltip for å unngå duplikater**
+        layer.unbindTooltip();
+
+        // 🔥 **Legg til tooltip for befolkningsendring når aktivert**
+        if (visModus === "endring" && endring !== null) {
+            layer.bindTooltip(
+                `${endring > 0 ? "+" : ""}${endring}`, // Viser endringstall
+                {
+                    permanent: true,
+                    direction: "center",
+                    className: "endring-tooltip"
+                }
+            );
+        } 
+
+        // 🔹 **Legg kun til grunnkretsnavn hvis IKKE i endringsmodus**
+        if (visGrunnkretsNavn && visModus !== "endring") {
+            layer.bindTooltip(grunnkretsnavn, {
+                permanent: true,
+                direction: "center",
+                className: "grunnkrets-label"
             });
-          });
         }
-      });
+
+        // 📌 **Legg til popup med mer info**
+        layer.bindPopup(`
+          <strong>${grunnkretsnavn}</strong><br/>
+          Totalt antall innbyggere (2024): ${totalBefolkning}<br/>
+          ${befolkning2017 !== null ? `Befolkning i 2017: ${befolkning2017}<br/>` : ""}
+      
+          ${befolkning2017 !== null ? `
+              <strong style="color: ${endring > 0 ? 'green' : endring < 0 ? 'red' : 'gray'};">
+              Endring: ${endring > 0 ? "+" : ""}${endring} personer
+              </strong><br/>
+          ` : ""}
+      
+          Andel 60+: ${(andelEldre * 100).toFixed(1)}%<br/>
+          Antall barn 0-4 år: ${befolkning0Til04År || 0}<br/>
+          <button id="visGraf-${grunnkretsnavn.replace(/\s/g, '')}" 
+              style="padding:5px; margin-top:5px; cursor:pointer;">
+              Vis aldersfordeling
+          </button>
+      `);
+
+        // 🛠 **Legg til eventlistener for knappen i popupen**
+        layer.on("popupopen", () => {
+            const knapp = document.getElementById(`visGraf-${grunnkretsnavn.replace(/\s/g, '')}`);
+            if (knapp) {
+                knapp.addEventListener("click", () => {
+                    setValgtGrunnkrets({
+                        grunnkretsnavn,
+                        populationData: feature.properties
+                    });
+                });
+            }
+        });
     }
-  };
+};
+
 
   useEffect(() => {
     window.addEventListener("visGraf", (e) => setValgtGrunnkrets(e.detail));
@@ -215,6 +255,7 @@ const BambleMap = () => {
           <option value="befolkning">Total befolkning</option>
           <option value="eldre">Eldreandel (60+)</option>
           <option value="barn">Barn (0-4 år)</option>
+          <option value="endring">Befolkningsendring (2017-2024)</option> {/* Nytt valg */}
         </select>
       </div>
 
@@ -332,7 +373,7 @@ const BambleMap = () => {
       <div style={{ background: "#fc8d59", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 25-40%<br/>
       <div style={{ background: "#d73027", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 40%+<br/>
     </>
-  ) : (
+  ) : visModus === "barn" ? (
     <>
       <div style={{ background: "#FFEDA0", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 0-5 barn<br/>
       <div style={{ background: "#FC4E2A", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 5-15 barn<br/>
@@ -340,6 +381,13 @@ const BambleMap = () => {
       <div style={{ background: "#BD0026", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 30-50 barn<br/>
       <div style={{ background: "#800026", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 50+ barn<br/>
     </>
+  ) : (
+    <>
+      <div style={{ background: "#1a9850", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Befolkningsøkning<br/>
+      <div style={{ background: "#d73027", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Befolkningsnedgang<br/>
+      <div style={{ background: "#cccccc", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Ingen endring / Manglende data<br/>
+    </>
+
   )}
 </div>
     </div>
