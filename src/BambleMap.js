@@ -123,7 +123,7 @@ const BambleMap = () => {
         } 
 
         // 🔹 **Legg kun til grunnkretsnavn hvis IKKE i endringsmodus**
-        if (visGrunnkretsNavn && visModus !== "endring") {
+        else if (visGrunnkretsNavn) {
             layer.bindTooltip(grunnkretsnavn, {
                 permanent: true,
                 direction: "center",
@@ -245,6 +245,10 @@ const BambleMap = () => {
           onChange={(e) => {
             setVisModus(e.target.value);
             setGeoJsonKey(prevKey => prevKey + 1);
+
+            if (e.target.value === "endring") {
+              setVisGrunnkretsNavn(false);
+            }
           }}
           style={{
             marginLeft: "10px",
@@ -291,9 +295,11 @@ const BambleMap = () => {
   <input
     type="checkbox"
     checked={visGrunnkretsNavn}
+    disabled={visModus=== "endring"}
     onChange={() => {
       setVisGrunnkretsNavn(!visGrunnkretsNavn);
       setMapKey(prevKey => prevKey + 1); // 🔄 Tvinger en oppdatering av kartet
+      
     }}
   /> Vis grunnkretsnavn
 </label>
