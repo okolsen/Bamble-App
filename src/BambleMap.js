@@ -138,7 +138,7 @@ const BambleMap = () => {
         <MapContainer key={geoJsonKey} center={[58.95, 9.56]} zoom={11} style={{ height: "100%", width: "100%" }}>
           <TileLayer
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> bidragsytere'
           />
           <GeoJSON key={mapKey} data={grunnkretserData} onEachFeature={håndterGrunnkrets} />
           {/* Grunnkretsnavn (vises kun hvis filteret er aktivt) */}
