@@ -353,9 +353,10 @@ const BambleMap = () => {
   zIndex: "1000"
 }}>
   <strong>
-    {visModus === "befolkning" ? "Total befolkning" 
+  {visModus === "befolkning" ? "Total befolkning" 
     : visModus === "eldre" ? "Andel eldre (60+ år)" 
-    : "Antall barn (0-4 år)"}
+    : visModus === "barn" ? "Antall barn (0-4 år)"
+    : "Befolkningsendring (2017-2024)"}
   </strong><br/>
 
   {visModus === "befolkning" ? (
