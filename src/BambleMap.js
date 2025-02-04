@@ -170,7 +170,7 @@ const BambleMap = () => {
         } 
         else if (visModus === "yngre") {
           layer.bindTooltip(
-            `Andel yngre: ${(andelYngre * 100).toFixed(1)}%`, // Viser andel i prosent
+            `${(andelYngre * 100).toFixed(1)}%`, // Viser andel i prosent
             {
               permanent: true,
               direction: "center",
@@ -178,7 +178,16 @@ const BambleMap = () => {
             }
           );
         }
-
+        else if (visModus === "eldre") {
+          layer.bindTooltip(
+            `${(andelEldre * 100).toFixed(1)}%`, // Viser andel i prosent
+            {
+              permanent: true,
+              direction: "center",
+              className: "andel-tooltip"
+            }
+          );
+        }
         // 🔹 **Legg kun til grunnkretsnavn hvis IKKE i endringsmodus**
         else if (visGrunnkretsNavn) {
             layer.bindTooltip(grunnkretsnavn, {
@@ -372,7 +381,7 @@ const BambleMap = () => {
   <input
     type="checkbox"
     checked={visGrunnkretsNavn}
-    disabled={visModus=== "endring"}
+    disabled={visModus=== "endring" || visModus=== "yngre" || visModus=== "eldre"}
     onChange={() => {
       setVisGrunnkretsNavn(!visGrunnkretsNavn);
       setMapKey(prevKey => prevKey + 1); // 🔄 Tvinger en oppdatering av kartet
