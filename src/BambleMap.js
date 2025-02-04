@@ -20,6 +20,14 @@ const beregnAndelEldre = (properties) => {
   return properties.totalBefolkning > 0 ? eldre / properties.totalBefolkning : 0; // Unngå NaN
 };
 
+const beregnAndelYngre = (properties) => {
+  const yngre = (properties.befolkning0Til04År || 0) + 
+                (properties.befolkning05Til09År || 0) +
+                (properties.befolkning10Til14År || 0) +
+                (properties.befolkning15Til19År || 0);
+  return properties.totalBefolkning > 0 ? yngre / properties.totalBefolkning : 0;
+};
+
 // Fargekoding for **total befolkning**
 const getBefolkningFarge = (befolkning) => {
   return befolkning > 1000 ? "#d73027" :
@@ -37,19 +45,27 @@ const getEldreFarge = (andel) => {
                         "#4575b4";
 };
 
-// Fargekoding for **barn (0-4 år)**
-const getBarnFarge = (antallBarn) => {
-  return antallBarn > 50 ? "#800026" :
-         antallBarn > 30 ? "#BD0026" :
-         antallBarn > 15 ? "#E31A1C" :
-         antallBarn > 5  ? "#FC4E2A" :
-                           "#FFEDA0";
-};
+
 
 // Fargekoding for befolkningsendring
 const getEndringFarge = (endring) => {
   if (endring === null) return "#cccccc"; // Grå for manglende data
   return endring > 0 ? "#1a9850" : "#d73027"; // Grønn for økning, rød for nedgang
+};
+
+const getAldersgruppeFarge = (antall) => {
+  return antall > 100 ? "#d73027" :
+         antall > 50  ? "#fc8d59" :
+         antall > 20  ? "#fee08b" :
+         antall > 10  ? "#d9ef8b" :
+                        "#1a9850";
+};
+
+const getYngreFarge = (andel) => {
+  return andel > 0.40 ? "#d73027" :  // Mer enn 40% unge (rødt)
+         andel > 0.30 ? "#fc8d59" :  // 30-40% (oransje)
+         andel > 0.20 ? "#91cf60" :  // 20-30% (grønn)
+                        "#4575b4";   // Under 20% (blått)
 };
 
 
@@ -79,8 +95,10 @@ const BambleMap = () => {
 
   const håndterGrunnkrets = (feature, layer) => {
     if (feature.properties) {
-        const { grunnkretsnavn, totalBefolkning, befolkning0Til04År } = feature.properties;
+        const { grunnkretsnavn, totalBefolkning } = feature.properties;
         const andelEldre = beregnAndelEldre(feature.properties);
+        const andelYngre = beregnAndelYngre(feature.properties);
+       
         
         // Finn 2017-data for denne grunnkretsen
         const valgtGrunnkrets2017 = data2017.find(
@@ -90,14 +108,43 @@ const BambleMap = () => {
         const befolkning2017 = valgtGrunnkrets2017 ? valgtGrunnkrets2017.totalBefolkning : null;
         const endring = befolkning2017 !== null ? totalBefolkning - befolkning2017 : null;
 
+        const alderMapping = {
+          "0-4": "befolkning0Til04År",
+          "5-9": "befolkning05Til09År",
+          "10-14": "befolkning10Til14År",
+          "15-19": "befolkning15Til19År",
+          "20-24": "befolkning20Til24År",
+          "25-29": "befolkning25Til29År",
+          "30-34": "befolkning30Til34År",
+          "35-39": "befolkning35Til39År",
+          "40-44": "befolkning40Til44År",
+          "45-49": "befolkning45Til49År",
+          "50-54": "befolkning50Til54År",
+          "55-59": "befolkning55Til59År",
+          "60-64": "befolkning60Til64År",
+          "65-69": "befolkning65Til69År",
+          "70-74": "befolkning70Til74År",
+          "75-79": "befolkning75Til79År",
+          "80-84": "befolkning80Til84År",
+          "85-89": "befolkning85Til89År",
+          "90+": "befolkning90ÅrOgOver"
+        };
+        
+        const aldersgruppeNøkkel = alderMapping[visModus] || null;
+        const antallIAldersgruppen = aldersgruppeNøkkel ? feature.properties[aldersgruppeNøkkel] || 0 : 0;
+
+        
+
         // Velg riktig fargekode basert på valgt visningsmodus
         const farge = visModus === "befolkning"
-            ? getBefolkningFarge(totalBefolkning)
-            : visModus === "eldre"
-            ? getEldreFarge(andelEldre)
-            : visModus === "barn"
-            ? getBarnFarge(befolkning0Til04År || 0)
-            : getEndringFarge(endring);
+        ? getBefolkningFarge(totalBefolkning)
+        : visModus === "eldre"
+        ? getEldreFarge(andelEldre)
+        : visModus === "yngre"
+        ? getYngreFarge(andelYngre)
+        : visModus === "endring"
+        ? getEndringFarge(endring)
+        : getAldersgruppeFarge(antallIAldersgruppen);
 
         layer.setStyle({
             fillColor: farge,
@@ -106,7 +153,7 @@ const BambleMap = () => {
             color: "white",
             fillOpacity: 0.7
         });
-
+        
         // 🛑 **Fjern tidligere tooltip for å unngå duplikater**
         layer.unbindTooltip();
 
@@ -121,6 +168,16 @@ const BambleMap = () => {
                 }
             );
         } 
+        else if (visModus === "yngre") {
+          layer.bindTooltip(
+            `Andel yngre: ${(andelYngre * 100).toFixed(1)}%`, // Viser andel i prosent
+            {
+              permanent: true,
+              direction: "center",
+              className: "andel-tooltip"
+            }
+          );
+        }
 
         // 🔹 **Legg kun til grunnkretsnavn hvis IKKE i endringsmodus**
         else if (visGrunnkretsNavn) {
@@ -144,7 +201,7 @@ const BambleMap = () => {
           ` : ""}
       
           Andel 60+: ${(andelEldre * 100).toFixed(1)}%<br/>
-          Antall barn 0-4 år: ${befolkning0Til04År || 0}<br/>
+           Andel yngre (0-19): ${(andelYngre * 100).toFixed(1)}%<br/>
           <button id="visGraf-${grunnkretsnavn.replace(/\s/g, '')}" 
               style="padding:5px; margin-top:5px; cursor:pointer;">
               Vis aldersfordeling
@@ -258,8 +315,28 @@ const BambleMap = () => {
         >
           <option value="befolkning">Total befolkning</option>
           <option value="eldre">Eldreandel (60+)</option>
-          <option value="barn">Barn (0-4 år)</option>
+          <option value="yngre">Andel yngre (0-19 år)</option>
           <option value="endring">Befolkningsendring (2017-2024)</option> {/* Nytt valg */}
+          <option disabled>──────────</option>  {/* Separator for aldersgrupper */}
+          <option value="0-4">Aldersgruppe: 0-4 år</option>
+          <option value="5-9">Aldersgruppe: 5-9 år</option>
+          <option value="10-14">Aldersgruppe: 10-14 år</option>
+          <option value="15-19">Aldersgruppe: 15-19 år</option>
+          <option value="20-24">Aldersgruppe: 20-24 år</option>
+          <option value="25-29">Aldersgruppe: 25-29 år</option>
+          <option value="30-34">Aldersgruppe: 30-34 år</option>
+          <option value="35-39">Aldersgruppe: 35-39 år</option>
+          <option value="40-44">Aldersgruppe: 40-44 år</option>
+          <option value="45-49">Aldersgruppe: 45-49 år</option>
+          <option value="50-54">Aldersgruppe: 50-54 år</option>
+          <option value="55-59">Aldersgruppe: 55-59 år</option>
+          <option value="60-64">Aldersgruppe: 60-64 år</option>
+          <option value="65-69">Aldersgruppe: 65-69 år</option>
+          <option value="70-74">Aldersgruppe: 70-74 år</option>
+          <option value="75-79">Aldersgruppe: 75-79 år</option>
+          <option value="80-84">Aldersgruppe: 80-84 år</option>
+          <option value="85-89">Aldersgruppe: 85-89 år</option>
+          <option value="90+">Aldersgruppe: 90+ år</option>
         </select>
       </div>
 
@@ -361,9 +438,10 @@ const BambleMap = () => {
   <strong>
   {visModus === "befolkning" ? "Total befolkning" 
     : visModus === "eldre" ? "Andel eldre (60+ år)" 
-    : visModus === "barn" ? "Antall barn (0-4 år)"
-    : "Befolkningsendring (2017-2024)"}
-  </strong><br/>
+    : visModus === "yngre" ? "Andel yngre (0-19 år)"
+    : visModus === "endring" ? "Befolkningsendring (2017-2024)"
+    : `Aldersgruppe: ${visModus} år`}
+</strong><br/>
 
   {visModus === "befolkning" ? (
     <>
@@ -380,19 +458,26 @@ const BambleMap = () => {
       <div style={{ background: "#fc8d59", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 25-40%<br/>
       <div style={{ background: "#d73027", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 40%+<br/>
     </>
-  ) : visModus === "barn" ? (
+  ) : visModus === "yngre" ? (
     <>
-      <div style={{ background: "#FFEDA0", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 0-5 barn<br/>
-      <div style={{ background: "#FC4E2A", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 5-15 barn<br/>
-      <div style={{ background: "#E31A1C", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 15-30 barn<br/>
-      <div style={{ background: "#BD0026", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 30-50 barn<br/>
-      <div style={{ background: "#800026", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 50+ barn<br/>
+      <div style={{ background: "#4575b4", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Under 20%<br/>
+      <div style={{ background: "#91cf60", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 20-30%<br/>
+      <div style={{ background: "#fc8d59", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 30-40%<br/>
+      <div style={{ background: "#d73027", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Over 40%<br/>
     </>
-  ) : (
+  )  : visModus === "endring" ? (
     <>
       <div style={{ background: "#1a9850", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Befolkningsøkning<br/>
       <div style={{ background: "#d73027", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Befolkningsnedgang<br/>
       <div style={{ background: "#cccccc", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> Ingen endring / Manglende data<br/>
+    </>
+  ) : (
+    <>
+      <div style={{ background: "#1a9850", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 0-10 personer<br/>
+      <div style={{ background: "#d9ef8b", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 10-20 personer<br/>
+      <div style={{ background: "#fee08b", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 20-50 personer<br/>
+      <div style={{ background: "#fc8d59", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 50-100 personer<br/>
+      <div style={{ background: "#d73027", width: "20px", height: "20px", display: "inline-block", marginRight: "5px" }}></div> 100+ personer<br/>
     </>
 
   )}
